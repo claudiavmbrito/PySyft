@@ -156,11 +156,11 @@ class _DataLoaderOneWorkerIter(object):
         raise StopIteration
 
 
+
 class FederatedDataLoader(object):
     """
     Data loader. Combines a dataset and a sampler, and provides
     single or several iterators over the dataset.
-
     Arguments:
         federated_dataset (FederatedDataset): dataset from which to load the data.
         batch_size (int, optional): how many samples per batch to load
@@ -209,6 +209,32 @@ class FederatedDataLoader(object):
         self.drop_last = drop_last
         self.collate_fn = collate_fn
         self.iter_class = _DataLoaderOneWorkerIter if iter_per_worker else _DataLoaderIter
+
+        if batch_sampler is not None:
+            if batch_size > 1 or shuffle or sampler is not None or drop_last:
+                raise ValueError('batch_sampler option is mutually exclusive '
+                                 'with batch_size, shuffle, sampler, and '
+                                 'drop_last')
+            self.batch_size = None
+            self.drop_last = None
+
+        if sampler is not None and shuffle:
+            raise ValueError('sampler option is mutually exclusive with '
+                             'shuffle')        
+
+
+        if batch_sampler is None:
+            if sampler is None:
+                if shuffle:
+                    sampler = RandomSampler(federated_dataset)
+                else:
+                    sampler = SequentialSampler(federated_dataset)
+            batch_sampler = BatchSampler(sampler, batch_size, drop_last)
+
+
+        self.sampler = sampler
+        self.__initialized = True
+
 
         # Build a batch sampler per worker
         self.batch_samplers = {}
